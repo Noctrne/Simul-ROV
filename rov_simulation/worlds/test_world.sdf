@@ -56,13 +56,7 @@
 
       </link>
     </model>
-
-    <!-- Model kotak -->
-    <include>
-      <uri>model://simple_box</uri>
-      <name>simple_box_instance</name>
-      <pose>0 0 20 50 75 66</pose>
-    </include>
+    
 
   </world>
 </sdf>
