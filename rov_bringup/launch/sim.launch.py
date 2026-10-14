@@ -3,78 +3,131 @@ import os
 from ament_index_python.packages import get_package_share_directory
 
 from launch import LaunchDescription
-
-from launch.actions import IncludeLaunchDescription, SetEnvironmentVariable
-
+from launch.actions import (
+    IncludeLaunchDescription,
+    SetEnvironmentVariable,
+    TimerAction,
+    ExecuteProcess,
+)
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 
 
 def generate_launch_description():
 
-    # Lokasi instalasi package ros_gz_sim
+    # ==========================================
+    # 1. Mencari lokasi package
+    # ==========================================
+
     gazebo_share = get_package_share_directory(
         'ros_gz_sim'
     )
 
-    # Lokasi instalasi package simulasi milik kita
     simulation_share = get_package_share_directory(
         'rov_simulation'
     )
 
-    # Lokasi world yang akan dibuka
+    # ==========================================
+    # 2. Menentukan lokasi world dan model
+    # ==========================================
+
     world_path = os.path.join(
         simulation_share,
         'worlds',
         'test_world.sdf'
     )
 
-    # Launch file untuk menjalankan Gazebo
-    gazebo_launch = os.path.join(
+    model_path = os.path.join(
+        simulation_share,
+        'models',
+        'simple_box',
+        'model.sdf'
+    )
+
+    gazebo_launch_path = os.path.join(
         gazebo_share,
         'launch',
         'gz_sim.launch.py'
     )
-    
 
+    # ==========================================
+    # 3. Mengatur lokasi pencarian resource Gazebo
+    # ==========================================
 
-
-
-
-    # Direktori induk model yang akan dicari oleh Gazebo
     model_resource_path = os.path.join(
         simulation_share,
         'models'
     )
 
-    # Pertahankan resource path yang sudah ada
     existing_resource_path = os.environ.get(
         'GZ_SIM_RESOURCE_PATH',
         ''
-    )    
-    
+    )
+
     if existing_resource_path:
         model_resource_path += (
             os.pathsep + existing_resource_path
-        )    
+        )
 
+    # ==========================================
+    # 4. Menjalankan Gazebo
+    # ==========================================
 
+    gazebo = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            gazebo_launch_path
+        ),
+        launch_arguments={
+            'gz_args': f'-r {world_path}'
+        }.items()
+    )
 
+    # ==========================================
+    # 5. Memasukkan model ke Gazebo
+    #    menggunakan executable create
+    # ==========================================
 
-    # Jalankan Gazebo menggunakan world milik kita
+    spawn_model = ExecuteProcess(
+        cmd=[
+            'ros2',
+            'run',
+            'ros_gz_sim',
+            'create',
+            '-world',
+            'test_world',
+            '-file',
+            model_path,
+            '-name',
+            'simple_box_instance',
+            '-x','0',
+            '-y','0',
+            '-z','15',
+            '-R','84',
+            '-P','57',
+            '-Y','69' 
+        ],
+        output='screen',
+    )
+
+    # ==========================================
+    # 6. Menggabungkan semua action
+    # ==========================================
+
     return LaunchDescription([
-        
-        # Berikan lokasi model kepada proses Gazebo
+
         SetEnvironmentVariable(
             name='GZ_SIM_RESOURCE_PATH',
             value=model_resource_path,
         ),
-        
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                gazebo_launch
-            ),
-            launch_arguments={
-                'gz_args': f'-r {world_path}'
-            }.items()
-        )
+
+        # Mulai Gazebo
+        gazebo,
+
+        # Beri waktu bagi Gazebo untuk memulai world
+        TimerAction(
+            period=5.0,
+            actions=[
+                spawn_model
+            ]
+        ),
+
     ])
